@@ -3,6 +3,34 @@ import { OAUTH_ENDPOINTS, GITHUB_COPILOT } from "../../config/appConstants.js";
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
 import { buildExternalIdpRefreshParams } from "../../../src/lib/oauth/kiroExternalIdp.js";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
+
+// Resolve a connection's proxy so token refreshes ALSO leave via the account's
+// own proxy instead of the host IP (keeps each account's egress consistent).
+async function resolveProxyOptions(providerSpecificData, log = null, provider = "") {
+  if (!providerSpecificData) {
+    log?.info?.("PROXY", `${provider} TOKEN_REFRESH proxied=false (no connection proxy)`);
+    return null;
+  }
+  try {
+    const cfg = await resolveConnectionProxyConfig(providerSpecificData);
+    if (cfg?.connectionProxyEnabled && cfg?.connectionProxyUrl) {
+      let host = "";
+      try { const u = new URL(cfg.connectionProxyUrl); host = `${u.hostname}:${u.port || ""}`; } catch { host = "(unparsed)"; }
+      log?.info?.("PROXY", `${provider} TOKEN_REFRESH proxied=true via ${host} pool=${cfg.proxyPoolId || "none"}`);
+      return {
+        connectionProxyEnabled: true,
+        connectionProxyUrl: cfg.connectionProxyUrl,
+        connectionNoProxy: cfg.connectionNoProxy || "",
+        strictProxy: false,
+      };
+    }
+    log?.info?.("PROXY", `${provider} TOKEN_REFRESH proxied=false (no pool bound)`);
+  } catch (e) {
+    log?.warn?.("PROXY", `${provider} TOKEN_REFRESH proxy resolve failed: ${e?.message || e}`);
+  }
+  return null;
+}
 
 let _xaiServiceSingleton = null;
 export async function refreshXaiToken(refreshToken, log) {
@@ -572,11 +600,12 @@ export async function refreshCopilotToken(githubAccessToken, log) {
 // CodeBuddy (Tencent) refresh — POST /v2/plugin/auth/token/refresh with the
 // refresh token carried in the X-Refresh-Token header (not a form body),
 // matching the official CodeBuddy CLI. Response: { code: 0, data: <token> }.
-export async function refreshCodebuddyToken(refreshToken, log) {
+export async function refreshCodebuddyToken(refreshToken, log, providerSpecificData = null) {
   if (!refreshToken) return null;
   return dedupRefresh("codebuddy-cn", refreshToken, async () => {
     const oauth = PROVIDER_OAUTH["codebuddy-cn"] || {};
-    const response = await fetch(oauth.refreshUrl, {
+    const proxyOptions = await resolveProxyOptions(providerSpecificData, log, "codebuddy-cn");
+    const response = await proxyAwareFetch(oauth.refreshUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -589,7 +618,7 @@ export async function refreshCodebuddyToken(refreshToken, log) {
         "X-Product": "SaaS",
       },
       body: "{}",
-    });
+    }, proxyOptions);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -623,11 +652,12 @@ export async function refreshCodebuddyToken(refreshToken, log) {
   }, log);
 }
 
-export async function refreshCodebuddyIntlToken(refreshToken, log) {
+export async function refreshCodebuddyIntlToken(refreshToken, log, providerSpecificData = null) {
   if (!refreshToken) return null;
   return dedupRefresh("codebuddy-intl", refreshToken, async () => {
     const oauth = PROVIDER_OAUTH["codebuddy-intl"] || {};
-    const response = await fetch(oauth.refreshUrl, {
+    const proxyOptions = await resolveProxyOptions(providerSpecificData, log, "codebuddy-intl");
+    const response = await proxyAwareFetch(oauth.refreshUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -640,7 +670,7 @@ export async function refreshCodebuddyIntlToken(refreshToken, log) {
         "X-Product": "SaaS",
       },
       body: "{}",
-    });
+    }, proxyOptions);
 
     if (!response.ok) {
       const errorText = await response.text();

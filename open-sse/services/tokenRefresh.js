@@ -134,8 +134,8 @@ const REFRESH_HANDLERS = {
   // Grok CLI shares xAI OAuth client + token endpoint (device-code tokens refresh the same way)
   "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
-  "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
-  "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log),
+  "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log, c.providerSpecificData),
+  "codebuddy-intl": (c, log) => refreshCodebuddyIntlToken(c.refreshToken, log, c.providerSpecificData),
   vertex: vertexRefreshHandler,
   "vertex-partner": vertexRefreshHandler
 };

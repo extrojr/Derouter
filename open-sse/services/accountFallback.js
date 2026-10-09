@@ -28,6 +28,13 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
   for (const rule of ERROR_RULES) {
     // Text-based rule: match substring in error message
     if (rule.text && lowerError && lowerError.includes(rule.text)) {
+      // Policy reject (e.g. CodeBuddy 11140 "request illegal"): the account is
+      // fine, this particular request was refused by the upstream content
+      // policy. Do NOT lock the account and do NOT retry - retrying a
+      // deterministic refusal just burns quota and hammers the account.
+      if (rule.noRetry) {
+        return { shouldFallback: false, cooldownMs: 0 };
+      }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
         return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
@@ -37,6 +44,9 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
 
     // Status-based rule: match HTTP status code
     if (rule.status && rule.status === status) {
+      if (rule.noRetry) {
+        return { shouldFallback: false, cooldownMs: 0 };
+      }
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
         return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };

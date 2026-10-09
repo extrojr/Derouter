@@ -13,6 +13,27 @@ export const ERROR_TYPES = {
   504: { type: "server_error", code: "gateway_timeout" }
 };
 
+/**
+ * Stable, provider-agnostic error category for policy refusals.
+ * Used instead of the raw numeric code so callers can branch on intent
+ * (a policy refusal is deterministic - retrying is pointless).
+ */
+export const POLICY_REJECT_CODE = "policy_reject";
+
+/**
+ * Detect an upstream content-policy refusal (CodeBuddy 11140 "request illegal").
+ * @param {number|string} status
+ * @param {string} errorText
+ * @returns {boolean}
+ */
+export function isPolicyReject(status, errorText) {
+  const text = errorText
+    ? (typeof errorText === "string" ? errorText : JSON.stringify(errorText)).toLowerCase()
+    : "";
+  if (text.includes("request illegal") || text.includes("11140")) return true;
+  return false;
+}
+
 // Default error messages per status code (client-facing)
 export const DEFAULT_ERROR_MESSAGES = {
   400: "Bad request",
@@ -57,6 +78,14 @@ const COOLDOWN = {
  *   - backoff: true = use exponential backoff (rate limit)
  */
 export const ERROR_RULES = [
+  // --- Policy reject (checked FIRST - must win over the generic 403 rule) ---
+  // CodeBuddy code 11140 "request illegal" is a deterministic content-policy
+  // refusal for ONE request, not an account/quota problem. Locking the account
+  // or retrying it would just hammer the account and burn quota, so: no retry,
+  // no cooldown, surface the error as-is.
+  { text: "request illegal",          noRetry: true },
+  { text: "11140",                    noRetry: true },
+
   // --- Text-based rules (checked first, order = priority) ---
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
