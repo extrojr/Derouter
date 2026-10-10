@@ -86,6 +86,16 @@ export const ERROR_RULES = [
   { text: "request illegal",          noRetry: true },
   { text: "11140",                    noRetry: true },
 
+  // --- Malformed-request guards (deterministic: the BODY is wrong, not the
+  // account). Without these, a bad image/edit payload 400s and the router
+  // retries it across every account, locking each for 30s — an account-safety
+  // hazard. Surface it immediately instead. Keep these to precise bad-request
+  // signals only: a broad prefix like "create image failed" can also wrap a
+  // transient error, which SHOULD still fail over. ---
+  { text: "cannot unmarshal",         noRetry: true },
+  { text: "unmarshal",                noRetry: true },
+  { text: "invalid parameter",        noRetry: true },
+
   // --- Text-based rules (checked first, order = priority) ---
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },

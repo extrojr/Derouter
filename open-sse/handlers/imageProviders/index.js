@@ -12,6 +12,7 @@ import blackForestLabs from "./blackForestLabs.js";
 import runwayml from "./runwayml.js";
 import cloudflareAi from "./cloudflareAi.js";
 import antigravity from "./antigravity.js";
+import createCodebuddyImageAdapter from "./codebuddyIntl.js";
 
 const ADAPTERS = {
   openai: createOpenAIAdapter("openai"),
@@ -20,8 +21,10 @@ const ADAPTERS = {
   recraft: createOpenAIAdapter("recraft"),
   "vercel-ai-gateway": createOpenAIAdapter("vercel-ai-gateway"),
   xai: createOpenAIAdapter("xai"),
-  "codebuddy-intl": createOpenAIAdapter("codebuddy-intl"),
-  "codebuddy-cn": createOpenAIAdapter("codebuddy-cn"),
+  // CodeBuddy supports image-to-image via /v2/images/edits; its own adapter
+  // routes between generations/edits based on the presence of an input image.
+  "codebuddy-intl": createCodebuddyImageAdapter("codebuddy-intl"),
+  "codebuddy-cn": createCodebuddyImageAdapter("codebuddy-cn"),
   gemini,
   codex,
   sdwebui,
